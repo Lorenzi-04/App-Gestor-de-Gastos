@@ -30,8 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         final pages = [
-          _DashboardTab(controller: controller),
-          _TransactionsTab(controller: controller),
+          _DashboardTab(
+            controller: controller,
+            onEdit: (expense) => _openEditExpenseSheet(context, expense),
+          ),
+          _TransactionsTab(
+            controller: controller,
+            onEdit: (expense) => _openEditExpenseSheet(context, expense),
+          ),
           _CategoriesTab(controller: controller),
         ];
 
@@ -73,12 +79,29 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => const AddExpenseSheet(),
     );
   }
+
+  Future<void> _openEditExpenseSheet(BuildContext context, Expense expense) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => AddExpenseSheet(initialExpense: expense),
+    );
+  }
 }
 
 class _DashboardTab extends StatelessWidget {
-  const _DashboardTab({required this.controller});
+  const _DashboardTab({
+    required this.controller,
+    required this.onEdit,
+  });
 
   final ExpenseController controller;
+  final ValueChanged<Expense> onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -155,12 +178,20 @@ class _DashboardTab extends StatelessWidget {
           )
         else
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 90),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              MediaQuery.of(context).padding.bottom + 90,
+            ),
             sliver: SliverList.separated(
               itemCount: math.min(4, controller.filteredExpenses.length),
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                return _TransactionTile(expense: controller.filteredExpenses[index]);
+                return _TransactionTile(
+                  expense: controller.filteredExpenses[index],
+                  onEdit: onEdit,
+                );
               },
             ),
           ),
@@ -170,9 +201,13 @@ class _DashboardTab extends StatelessWidget {
 }
 
 class _TransactionsTab extends StatelessWidget {
-  const _TransactionsTab({required this.controller});
+  const _TransactionsTab({
+    required this.controller,
+    required this.onEdit,
+  });
 
   final ExpenseController controller;
+  final ValueChanged<Expense> onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -236,12 +271,20 @@ class _TransactionsTab extends StatelessWidget {
           )
         else
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 90),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              MediaQuery.of(context).padding.bottom + 90,
+            ),
             sliver: SliverList.separated(
               itemCount: controller.filteredExpenses.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                return _TransactionTile(expense: controller.filteredExpenses[index]);
+                return _TransactionTile(
+                  expense: controller.filteredExpenses[index],
+                  onEdit: onEdit,
+                );
               },
             ),
           ),
@@ -303,7 +346,12 @@ class _CategoriesTab extends StatelessWidget {
           )
         else
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 90),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              MediaQuery.of(context).padding.bottom + 90,
+            ),
             sliver: SliverList.separated(
               itemCount: categories.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -804,9 +852,13 @@ class _InfoPill extends StatelessWidget {
 }
 
 class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.expense});
+  const _TransactionTile({
+    required this.expense,
+    required this.onEdit,
+  });
 
   final Expense expense;
+  final ValueChanged<Expense> onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -817,10 +869,9 @@ class _TransactionTile extends StatelessWidget {
         isIncome ? const Color(0xFF2AA968) : const Color(0xFFE25555);
 
     return Dismissible(
-      key: ValueKey(
-        expense.id ?? '${expense.title}-${expense.date.toIso8601String()}',
-      ),
+      key: ValueKey(expense.id ?? '${expense.title}-${expense.date.toIso8601String()}'),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDelete(context),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -851,9 +902,8 @@ class _TransactionTile extends StatelessWidget {
               backgroundColor: expense.category.color.withValues(alpha: 0.12),
               child: Icon(
                 isIncome ? Icons.arrow_downward_rounded : expense.category.icon,
-                color: isIncome
-                    ? const Color(0xFF2AA968)
-                    : expense.category.color,
+                color:
+                    isIncome ? const Color(0xFF2AA968) : expense.category.color,
               ),
             ),
             const SizedBox(width: 12),
@@ -881,17 +931,70 @@ class _TransactionTile extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              '${isIncome ? '+' : '-'}${_currency2(expense.amount)}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: amountColor,
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    if (value == 'edit') {
+                      onEdit(expense);
+                    } else if (value == 'delete') {
+                      final shouldDelete = await _confirmDelete(context);
+                      if (shouldDelete == true) {
+                        await controller.deleteExpense(expense);
+                      }
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Text('Editar'),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Text('Eliminar'),
+                    ),
+                  ],
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.more_vert_rounded),
                   ),
+                ),
+                Text(
+                  '${isIncome ? '+' : '-'}${_currency2(expense.amount)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: amountColor,
+                      ),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Future<bool?> _confirmDelete(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Eliminar movimiento'),
+          content: Text('¿Deseas eliminar "${expense.title}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1029,7 +1132,6 @@ class _BottomBar extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.max,
                         children: [
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 220),
@@ -1054,15 +1156,19 @@ class _BottomBar extends StatelessWidget {
                           const SizedBox(height: 3),
                           Flexible(
                             child: Text(
-                            item.$2,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  fontSize: 10,
-                                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                                  color: const Color(0xFF33414A),
-                                ),
-                          ),
+                              item.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    fontSize: 10,
+                                    fontWeight:
+                                        active ? FontWeight.w800 : FontWeight.w600,
+                                    color: const Color(0xFF33414A),
+                                  ),
+                            ),
                           ),
                         ],
                       ),

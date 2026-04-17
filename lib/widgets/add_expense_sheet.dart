@@ -3,11 +3,16 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/expense_controller.dart';
-import '../models/expense_category.dart';
 import '../models/expense.dart';
+import '../models/expense_category.dart';
 
 class AddExpenseSheet extends StatefulWidget {
-  const AddExpenseSheet({super.key});
+  const AddExpenseSheet({
+    super.key,
+    this.initialExpense,
+  });
+
+  final Expense? initialExpense;
 
   @override
   State<AddExpenseSheet> createState() => _AddExpenseSheetState();
@@ -22,6 +27,22 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
   ExpenseCategory _selectedCategory = ExpenseCategory.food;
   DateTime _selectedDate = DateTime.now();
   bool _saving = false;
+
+  bool get _isEditing => widget.initialExpense != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final expense = widget.initialExpense;
+    if (expense != null) {
+      _titleCtrl.text = expense.title;
+      _amountCtrl.text = expense.amount.toStringAsFixed(2);
+      _noteCtrl.text = expense.note;
+      _selectedType = expense.type;
+      _selectedCategory = expense.category;
+      _selectedDate = expense.date;
+    }
+  }
 
   @override
   void dispose() {
@@ -50,14 +71,28 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
     }
 
     setState(() => _saving = true);
-    await context.read<ExpenseController>().addExpense(
-          title: _titleCtrl.text.trim(),
-          amount: double.parse(_amountCtrl.text.replaceAll(',', '.')),
-          type: _selectedType,
-          category: _selectedCategory,
-          date: _selectedDate,
-          note: _noteCtrl.text.trim(),
-        );
+    final controller = context.read<ExpenseController>();
+
+    if (_isEditing) {
+      await controller.updateExpense(
+        originalExpense: widget.initialExpense!,
+        title: _titleCtrl.text.trim(),
+        amount: double.parse(_amountCtrl.text.replaceAll(',', '.')),
+        type: _selectedType,
+        category: _selectedCategory,
+        date: _selectedDate,
+        note: _noteCtrl.text.trim(),
+      );
+    } else {
+      await controller.addExpense(
+        title: _titleCtrl.text.trim(),
+        amount: double.parse(_amountCtrl.text.replaceAll(',', '.')),
+        type: _selectedType,
+        category: _selectedCategory,
+        date: _selectedDate,
+        note: _noteCtrl.text.trim(),
+      );
+    }
 
     if (!mounted) {
       return;
@@ -86,7 +121,7 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Nuevo movimiento',
+                _isEditing ? 'Editar movimiento' : 'Nuevo movimiento',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -117,8 +152,8 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                 decoration: InputDecoration(
                   labelText: _selectedType == TransactionType.income
                       ? 'Descripcion del ingreso'
-                      : 'Descripción del gasto',
-                  prefixIcon: Icon(Icons.edit_note_rounded),
+                      : 'Descripcion del gasto',
+                  prefixIcon: const Icon(Icons.edit_note_rounded),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -209,11 +244,13 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save_rounded),
+                      : Icon(_isEditing ? Icons.edit_rounded : Icons.save_rounded),
                   label: Text(
-                    _selectedType == TransactionType.income
-                        ? 'Guardar ingreso'
-                        : 'Guardar gasto',
+                    _isEditing
+                        ? 'Guardar cambios'
+                        : _selectedType == TransactionType.income
+                            ? 'Guardar ingreso'
+                            : 'Guardar gasto',
                   ),
                 ),
               ),

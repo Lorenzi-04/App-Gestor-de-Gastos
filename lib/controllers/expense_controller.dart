@@ -101,6 +101,33 @@ class ExpenseController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateExpense({
+    required Expense originalExpense,
+    required String title,
+    required double amount,
+    required TransactionType type,
+    required ExpenseCategory category,
+    required DateTime date,
+    String note = '',
+  }) async {
+    final updatedExpense = originalExpense.copyWith(
+      title: title,
+      amount: amount,
+      type: type,
+      category: category,
+      date: date,
+      note: note,
+    );
+
+    await _database.updateExpense(updatedExpense);
+    final index = _expenses.indexWhere((item) => item.id == originalExpense.id);
+    if (index != -1) {
+      _expenses[index] = updatedExpense;
+      _expenses.sort((a, b) => b.date.compareTo(a.date));
+    }
+    notifyListeners();
+  }
+
   Future<void> deleteExpense(Expense expense) async {
     if (expense.id == null) {
       return;
